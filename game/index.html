@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BENTENG SALJU — Curi 3 Kristal Aurora di Tengah Badai</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1280px; height: 800px; overflow: hidden; background: #070d1d;
+    font-family: "Segoe UI", system-ui, sans-serif; color: #eef4ff; }
+  #game { position: absolute; inset: 0; }
+  #game canvas { display: block; }
+  #storm-veil { position: absolute; inset: 0; background: #dfeaf7; opacity: 0; z-index: 4;
+    pointer-events: none; transition: opacity 0.8s; }
+  .panel { position: absolute; background: rgba(8, 16, 36, 0.82); border: 1px solid #4a6a9e;
+    border-radius: 10px; padding: 8px 12px; font-size: 14px; line-height: 1.45; z-index: 5;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.5); }
+  #hud-stats { top: 10px; left: 10px; width: 460px; }
+  #hud-stats .row { display: flex; justify-content: space-between; gap: 12px; }
+  #hud-stats .dim { color: #9db4d8; font-size: 12.5px; }
+  #hud-meter { top: 10px; right: 10px; width: 220px; text-align: right; }
+  #meter-track { height: 10px; background: #1a2a4a; border-radius: 5px; margin-top: 4px; overflow: hidden; }
+  #meter-bar { height: 100%; width: 0%; background: #35e08a; transition: width 0.15s; }
+  #hud-guards { top: 118px; left: 10px; width: 460px; font-size: 13.5px; }
+  #hud-guards .ok { color: #9fe8c0; }
+  #hud-guards .warn { color: #ffb020; font-weight: bold; }
+  #hud-guards .alert { color: #ff6b61; font-weight: bold; }
+  #banner { position: absolute; top: 64px; left: 50%; transform: translateX(-50%);
+    background: rgba(8, 16, 36, 0.9); border: 1px solid #ffd34d; color: #ffe9a8;
+    padding: 6px 18px; border-radius: 20px; font-size: 16px; font-weight: bold; z-index: 6;
+    opacity: 0; transition: opacity 0.25s; white-space: nowrap; }
+  #banner.show { opacity: 1; }
+  #hud-hint { position: absolute; bottom: 12px; left: 10px; background: rgba(8,16,36,0.85);
+    border: 1px solid #35e08a; color: #b8f5d3; padding: 7px 12px; border-radius: 8px;
+    font-size: 14px; z-index: 5; opacity: 0; transition: opacity 0.2s; }
+  #hud-hint.show { opacity: 1; }
+  #hud-controls { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%);
+    font-size: 13px; color: #c8d6ee; background: rgba(8,16,36,0.7); padding: 6px 12px;
+    border-radius: 8px; z-index: 5; white-space: nowrap; }
+  #minimap { position: absolute; right: 10px; bottom: 10px; width: 200px; height: 148px;
+    border: 1px solid #4a6a9e; border-radius: 8px; background: #0d1a33; z-index: 5; }
+  #btn-mute { position: absolute; right: 220px; bottom: 10px; z-index: 6; background: rgba(8,16,36,0.85);
+    color: #eef4ff; border: 1px solid #4a6a9e; border-radius: 8px; padding: 7px 10px;
+    font-size: 13px; cursor: pointer; }
+  .screen { position: absolute; inset: 0; display: none; align-items: center; justify-content: center;
+    background: rgba(4, 8, 20, 0.72); z-index: 10; }
+  .screen.show { display: flex; }
+  .card { background: rgba(10, 20, 44, 0.94); border: 2px solid #7fb0ff; border-radius: 16px;
+    padding: 28px 36px; max-width: 640px; text-align: center; box-shadow: 0 8px 40px rgba(0,0,0,0.6); }
+  .card h1 { font-size: 40px; letter-spacing: 2px; color: #bfe3ff; margin-bottom: 4px; }
+  .card h2 { font-size: 19px; color: #7dffd4; font-weight: normal; margin-bottom: 14px; }
+  .card p { font-size: 15px; line-height: 1.6; color: #d5e2f5; margin-bottom: 10px; text-align: left; }
+  .card .goal { background: rgba(53, 224, 138, 0.12); border: 1px solid #35e08a; border-radius: 8px;
+    padding: 10px 14px; margin-bottom: 12px; text-align: left; }
+  .card button { margin-top: 10px; font-size: 20px; font-weight: bold; padding: 12px 34px;
+    border-radius: 12px; border: none; background: #35e08a; color: #06281a; cursor: pointer; }
+  .card button:hover { background: #5ff0a4; }
+  .card .keys { font-size: 13.5px; color: #9db4d8; text-align: left; margin-top: 12px; line-height: 1.7; }
+  .grade { font-size: 54px; font-weight: bold; margin: 6px 0; }
+  .grade-s { color: #ffd34d; text-shadow: 0 0 18px rgba(255,211,77,0.7); }
+  .grade-a { color: #7dffd4; }
+  .grade-b { color: #59c2ff; }
+  .grade-c { color: #c8d6ee; }
+  #win-stats, #lose-reason { font-size: 16px; line-height: 1.6; }
+  .hidden { display: none; }
+</style>
+<script type="importmap">
+{ "imports": { "three": "./vendor/three.min.js" } }
+</script>
+</head>
+<body>
+<div id="game"></div>
+<div id="storm-veil"></div>
+
+<div id="hud-stats" class="panel"></div>
+<div id="hud-meter" class="panel">
+  <div id="meter-label">Aman</div>
+  <div id="meter-track"><div id="meter-bar"></div></div>
+  <div style="font-size:12px;color:#9db4d8">Meter deteksi — sembunyi di balik cover / zona hangat</div>
+</div>
+<div id="hud-guards" class="panel"></div>
+<div id="banner"></div>
+<div id="hud-hint"></div>
+<div id="hud-controls">WASD gerak · Shift menyelinap · E ambil kristal · Q lempar bola salju · R ulang · M suara</div>
+<canvas id="minimap" width="200" height="148"></canvas>
+<button id="btn-mute">🔊 Suara: Hidup (M)</button>
+
+<div id="screen-title" class="screen">
+  <div class="card">
+    <h1>BENTENG SALJU</h1>
+    <h2>❄ Curi 3 Kristal Aurora di Tengah Badai ❄</h2>
+    <div class="goal"><b>TUJUAN:</b> Curi <b>Kristal Fajar</b>, <b>Kristal Senja</b>, dan <b>Kristal Tengah Malam</b>
+      dari menara benteng, lalu capai gerbang <b>EXIT</b> di selatan tanpa tertangkap.</div>
+    <p><b>Badai salju</b> datang tiap ~25 detik: cone pandang penjaga memendek — saatnya bergerak!
+      <b>Jejak kakimu</b> tertinggal di salju; penjaga yang menemukannya akan mengikutinya.
+      Berdiri di dekat <b>obor pemanas</b> (cincin oranye) untuk melelehkan jejak lebih cepat.</p>
+    <p>Penjaga: 4 prajurit salju patroli + <b>Fenrir</b>, serigala putih yang cepat. Cone <b>kuning</b> = patroli,
+      <b>oranye (?)</b> = curiga, <b>merah (!)</b> = mengejar. Sembunyi di balik tumpukan salju, patung es, dan kereta luncur.</p>
+    <div class="keys">WASD / panah — gerak &nbsp;·&nbsp; Shift — menyelinap (lambat, sunyi) &nbsp;·&nbsp; E — ambil kristal<br>
+      Q — lempar bola salju (pengalih, 3x) &nbsp;·&nbsp; R — ulang &nbsp;·&nbsp; M — suara &nbsp;·&nbsp; Enter — mulai</div>
+    <button id="btn-start">▶ MULAI MENYUSUP</button>
+  </div>
+</div>
+
+<div id="screen-win" class="screen">
+  <div class="card">
+    <h1 style="color:#7dffd4">❄ KRISTAL DIREBUT! ❄</h1>
+    <h2>Ketiga Kristal Aurora berhasil dicuri — kau lolos dari benteng!</h2>
+    <div id="win-grade" class="grade grade-s">GRADE S</div>
+    <div id="win-stats"></div>
+    <button id="btn-again">↻ MAIN LAGI (R)</button>
+  </div>
+</div>
+
+<div id="screen-lose" class="screen">
+  <div class="card">
+    <h1 style="color:#ff6b61">GAME OVER</h1>
+    <h2>Badai menelan jejakmu…</h2>
+    <div id="lose-reason"></div>
+    <button id="btn-retry">↻ COBA LAGI (R)</button>
+  </div>
+</div>
+
+<div id="err" class="hidden"></div>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
